@@ -167,11 +167,6 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     inputRef.current?.focus();
-    if (output.length === 0) {
-      const intro =
-        "Available commands: help help <command> projects [page] open <n> about contact resume theme <light|dark|matrix|solarized> clear | cls";
-      void typePrint([intro]);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
