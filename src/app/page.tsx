@@ -23,6 +23,8 @@ type OutputBlock = {
   lines: CommandResultLine[];
 };
 
+type MenuItem = { label: string; action: () => void };
+
 const CONFIG = {
   promptUser: "alokkumax",
   promptHost: "portfolio",
@@ -32,14 +34,14 @@ const CONFIG = {
   pageSize: 5,
   email: "hello@example.com",
   socials: {
-    github: "https://github.com/yourname",
+    github: "https://github.com/alokkumax",
     linkedin: "https://www.linkedin.com/in/yourname/",
-    twitter: "https://twitter.com/yourname",
+    twitter: "https://twitter.com/alokkumax11",
   },
-  resumeUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+  resumeUrl: "https://drive.google.com/drive/folders/1tzr4zdyG55Hvvj3nw7tlkBV56sNg5j1W?usp=sharing",
   bio: {
     name: "Alok Kumar Sah",
-    role: "Frontend Engineer",
+    role: "Software Engineer",
     location: "Somewhere, Earth",
     about:
       "I craft fast, accessible web apps. I enjoy systems design, DX, and beautiful UIs.",
@@ -48,6 +50,8 @@ const CONFIG = {
       "React",
       "Next.js",
       "Node.js",
+      "React Native",
+      "Flutter",
       "Tailwind CSS",
       "Testing",
     ],
@@ -150,6 +154,7 @@ export default function Home() {
   const [output, setOutput] = useState<OutputBlock[]>([]);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [menu, setMenu] = useState<{ title: string; items: MenuItem[]; index: number } | null>(null);
 
   // Apply theme variables
   useEffect(() => {
@@ -162,6 +167,12 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
     inputRef.current?.focus();
+    if (output.length === 0) {
+      const intro =
+        "Available commands: help help <command> projects [page] open <n> about contact resume theme <light|dark|matrix|solarized> clear | cls";
+      void typePrint([intro]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -194,6 +205,40 @@ export default function Home() {
     setOutput((o) => [...o, block]);
   }
 
+  async function typePrint(lines: string[]) {
+    const blockId = crypto.randomUUID();
+    setOutput((o) => [...o, { id: blockId, lines: [] }]);
+    for (const html of lines) {
+      const lineId = crypto.randomUUID();
+      setOutput((o) =>
+        o.map((b) =>
+          b.id === blockId ? { ...b, lines: [...b.lines, { id: lineId, html: "" }] } : b
+        )
+      );
+      const text = htmlToText(html);
+      for (let i = 0; i <= text.length; i += 1) {
+        const partial = escapeHtml(text.slice(0, i)) + (i < text.length ? "<span class='caret'></span>" : "");
+        setOutput((o) =>
+          o.map((b) =>
+            b.id === blockId
+              ? { ...b, lines: b.lines.map((l) => (l.id === lineId ? { ...l, html: partial } : l)) }
+              : b
+          )
+        );
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(CONFIG.outputMsPerChar);
+      }
+      // finalize with original HTML (restores links/styles)
+      setOutput((o) =>
+        o.map((b) =>
+          b.id === blockId
+            ? { ...b, lines: b.lines.map((l) => (l.id === lineId ? { ...l, html } : l)) }
+            : b
+        )
+      );
+    }
+  }
+
   async function handleCommand(raw: string) {
     const cmd = raw.trim();
     if (!cmd) return;
@@ -201,49 +246,50 @@ export default function Home() {
     setHistoryIdx(-1);
     setInput("");
 
-    const [name, ...rest] = cmd.split(/\s+/);
+    const [nameRaw, ...rest] = cmd.split(/\s+/);
+    const name = nameRaw.replace(/^\//, "");
     const arg = rest.join(" ");
 
     switch (name.toLowerCase()) {
-      case "/help": {
+      case "help": {
         if (arg) {
           const details: Record<string, string> = {
-            "/help": "Usage: /help [command] — show available commands or details.",
-            "/projects":
-              "Usage: /projects [page] — paginated list. 'open <n>' to open.",
-            "/about": "Usage: /about — short bio, role, location, skills.",
-            "/contact":
-              "Usage: /contact — email and socials. 'copy email' to clipboard.",
-            "/resume": "Usage: /resume — open/download resume PDF.",
-            "/theme":
-              "Usage: /theme <light|dark|matrix|solarized> — switch theme.",
-            "/clear": "Usage: /clear — clear terminal history (alias: cls).",
+            "help": "Usage: help [command] — show available commands or details.",
+            "projects":
+              "Usage: projects [page] — paginated list. 'open <n>' to open.",
+            "about": "Usage: about — short bio, role, location, skills.",
+            "contact":
+              "Usage: contact — email and socials. 'copy email' to clipboard.",
+            "resume": "Usage: resume — open/download resume PDF.",
+            "theme":
+              "Usage: theme <light|dark|matrix|solarized> — switch theme or 'theme' to open selector.",
+            "clear": "Usage: clear — clear terminal history (alias: cls).",
           };
           const text = details[arg] || `No details for '${arg}'.`;
-          print([escapeHtml(text)]);
+          typePrint([escapeHtml(text)]);
           return;
         }
-        print([
+        typePrint([
           strong("Available commands:"),
-          code("/help"),
-          code("/help <command>"),
-          code("/projects [page]"),
+          code("help"),
+          code("help <command>"),
+          code("projects [page]"),
           code("open <n>"),
-          code("/about"),
-          code("/contact"),
-          code("/resume"),
-          code("/theme <light|dark|matrix|solarized>"),
-          code("/clear | cls"),
+          code("about"),
+          code("contact"),
+          code("resume"),
+          code("theme <light|dark|matrix|solarized> | theme"),
+          code("clear | cls"),
         ]);
         return;
       }
-      case "/projects": {
+      case "projects": {
         const page = Math.max(1, parseInt(rest[0] || "1", 10) || 1);
         const start = (page - 1) * CONFIG.pageSize;
         const slice = CONFIG.projects.slice(start, start + CONFIG.pageSize);
         const totalPages = Math.max(1, Math.ceil(CONFIG.projects.length / CONFIG.pageSize));
         if (slice.length === 0) {
-          print([`No projects on page ${page}.`]);
+          typePrint([`No projects on page ${page}.`]);
           return;
         }
         const lines: string[] = [`Projects (page ${page}/${totalPages}):`];
@@ -256,28 +302,33 @@ export default function Home() {
             )} <span class='dim'>${tags}</span> \n <a href='${p.demoUrl}' target='_blank' rel='noreferrer'>demo</a> · <a href='${p.sourceUrl}' target='_blank' rel='noreferrer'>source</a>`
           );
         });
-        lines.push("Type 'open <n>' to open demo in a new tab.");
-        print(lines);
+        lines.push("Use ↑/↓ to select and Enter to open demo. Type 'open <n>' anytime.");
+        typePrint(lines);
+        setMenu({
+          title: "Select a project",
+          items: slice.map((p) => ({ label: p.title, action: () => window.open(p.demoUrl, "_blank") })),
+          index: 0,
+        });
         return;
       }
       case "open": {
         const n = parseInt(rest[0] || "", 10);
         if (!n) {
-          print(["Usage: open <n> — open the nth project demo."]);
+          typePrint(["Usage: open <n> — open the nth project demo."]);
           return;
         }
         const proj = CONFIG.projects[n - 1];
         if (!proj) {
-          print([`Project ${n} not found.`]);
+          typePrint([`Project ${n} not found.`]);
           return;
         }
         window.open(proj.demoUrl, "_blank");
-        print([`Opening ${escapeHtml(proj.title)}...`]);
+        typePrint([`Opening ${escapeHtml(proj.title)}...`]);
         return;
       }
-      case "/about": {
+      case "about": {
         const b = CONFIG.bio;
-        print([
+        typePrint([
           strong(`${b.name} — ${b.role}`),
           `${escapeHtml(b.location)}`,
           `${escapeHtml(b.about)}`,
@@ -285,9 +336,9 @@ export default function Home() {
         ]);
         return;
       }
-      case "/contact": {
+      case "contact": {
         const s = CONFIG.socials;
-        print([
+        typePrint([
           `Email: <a href='mailto:${CONFIG.email}'>${CONFIG.email}</a> (type 'copy email')`,
           `GitHub: <a href='${s.github}' target='_blank' rel='noreferrer'>${s.github}</a>`,
           `LinkedIn: <a href='${s.linkedin}' target='_blank' rel='noreferrer'>${s.linkedin}</a>`,
@@ -299,40 +350,52 @@ export default function Home() {
         if (arg.toLowerCase() === "email") {
           try {
             await navigator.clipboard.writeText(CONFIG.email);
-            print(["Email copied to clipboard."]);
+            typePrint(["Email copied to clipboard."]);
           } catch {
-            print(["Copy failed — your browser blocked clipboard access."]);
+            typePrint(["Copy failed — your browser blocked clipboard access."]);
           }
         } else {
-          print(["Usage: copy email"]);
+          typePrint(["Usage: copy email"]);
         }
         return;
       }
-      case "/resume": {
+      case "resume": {
         window.open(CONFIG.resumeUrl, "_blank");
-        print(["Opening resume.pdf …"]);
+        typePrint(["Opening resume.pdf …"]);
         return;
       }
-      case "/theme": {
+      case "theme": {
         const t = rest[0]?.toLowerCase() as ThemeName | undefined;
         if (!t || !(t in THEMES)) {
-          print(["Usage: /theme <light|dark|matrix|solarized>"]);
+          setMenu({
+            title: "Select theme",
+            items: (Object.keys(THEMES) as ThemeName[]).map((nm) => ({
+              label: nm,
+              action: () => {
+                setTheme(nm);
+                typePrint([`Theme set to ${nm}.`]);
+              },
+            })),
+            index: 0,
+          });
+          typePrint(["Theme: use ↑/↓ and Enter to select."]);
           return;
         }
         setTheme(t);
-        print([`Theme set to ${t}.`]);
+        typePrint([`Theme set to ${t}.`]);
         return;
       }
-      case "/clear":
+      case "clear":
       case "cls": {
         setOutput([]);
+        setMenu(null);
         return;
       }
       default: {
         if (name.toLowerCase() === "search") {
           const term = arg.toLowerCase();
           if (!term) {
-            print(["Usage: search <term>"]);
+            typePrint(["Usage: search <term>"]);
             return;
           }
           const matches = CONFIG.projects
@@ -346,7 +409,7 @@ export default function Home() {
             print([`No matches for '${escapeHtml(term)}'.`]);
             return;
           }
-          print([
+          typePrint([
             strong(`Search results (${matches.length}):`),
             ...matches.map((m) =>
               `${m.i + 1}. <span class='title'>${escapeHtml(m.p.title)}</span> — ${escapeHtml(
@@ -356,12 +419,36 @@ export default function Home() {
           ]);
           return;
         }
-        print([`Command not found: ${escapeHtml(name)}. Type /help.`]);
+        typePrint([`Command not found: ${escapeHtml(name)}. Type /help.`]);
       }
     }
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (menu) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMenu((m) => (m ? { ...m, index: (m.index - 1 + m.items.length) % m.items.length } : m));
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMenu((m) => (m ? { ...m, index: (m.index + 1) % m.items.length } : m));
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const current = menu.items[menu.index];
+        setMenu(null);
+        current?.action();
+        return;
+      }
+      if (e.key === "Escape") {
+        setMenu(null);
+        return;
+      }
+    }
+
     if (e.key === "Enter") {
       handleCommand(input);
     } else if (e.key === "ArrowUp") {
@@ -408,7 +495,7 @@ export default function Home() {
 
         <section
           ref={containerRef}
-          className="max-h-[70vh] md:max-h-[60vh] overflow-y-auto px-6 py-5 space-y-2 focus:outline-none"
+          className="max-h-[70vh] md:max-h-[60vh] min-h-[140px] overflow-y-auto px-6 py-5 space-y-2 focus:outline-none"
           role="log"
           aria-live="polite"
         >
@@ -424,6 +511,19 @@ export default function Home() {
             </div>
           ))}
         </section>
+
+        {menu && (
+          <div className="px-4 py-2 border-t border-[color:color-mix(in_oklab,var(--fg)_15%,transparent)] bg-[color:color-mix(in_oklab,var(--bg)_85%,var(--fg)_4%)]" role="menu" aria-label={menu.title}>
+            <div className="text-xs mb-1 text-[var(--muted)]">{menu.title} — ↑/↓ select, Enter confirm, Esc cancel</div>
+            <ul className="text-sm">
+              {menu.items.map((it, i) => (
+                <li key={it.label} className={i === menu.index ? "title" : undefined}>
+                  {i === menu.index ? ">" : "\u00A0"} {it.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <footer className="px-4 py-3 border-t border-[color:color-mix(in_oklab,var(--fg)_15%,transparent)] bg-[color:color-mix(in_oklab,var(--bg)_85%,var(--fg)_4%)]">
           <div className="flex items-center gap-2">
@@ -480,4 +580,15 @@ function escapeHtml(s: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function htmlToText(html: string) {
+  if (typeof window === "undefined") return html;
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || "";
+}
+
+function sleep(ms: number) {
+  return new Promise((res) => setTimeout(res, ms));
 }
